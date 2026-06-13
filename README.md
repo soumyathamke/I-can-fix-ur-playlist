@@ -3,7 +3,7 @@ GenZ AI music recommendation web app — built a custom cosine similarity recomm
 
 # 🔪 VibeCheck.ai — i can fix ur playlist
 
-https://vibecheckzip--khush786.replit.app/
+https://viber-ai.streamlit.app/
 
 A GenZ-flavoured AI music recommendation web app that analyses your personality through 5 unhinged quiz questions and recommends the perfect song — powered by a custom cosine similarity recommendation engine and the Groq LLM API.
 
