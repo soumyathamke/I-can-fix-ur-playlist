@@ -171,6 +171,7 @@ for k, v in [
         st.session_state[k] = v
 
 _COUNTER_FILE = ".view_count.json"
+_VIEW_OFFSET = 130  # views carried over from before current deploy
 def _increment_views():
     try:
         data = {"v": 0}
@@ -178,7 +179,7 @@ def _increment_views():
             with open(_COUNTER_FILE) as f: data = json.load(f)
         data["v"] = data.get("v", 0) + 1
         with open(_COUNTER_FILE, "w") as f: json.dump(data, f)
-        return data["v"]
+        return _VIEW_OFFSET + data["v"]
     except Exception: return "—"
 
 if st.session_state.view_count is None:
@@ -211,6 +212,30 @@ else:
     HERO_MID    = "#fce4ec"
 
 # ── GLOBAL CSS ──────────────────────────────────────────────────
+# ── Google Analytics 4 ─────────────────────────────────────────
+# Replace G-XXXXXXXXXX with your real GA4 Measurement ID
+# Get it from: analytics.google.com → Admin → Data Streams → your stream
+_GA_ID = os.environ.get("GA_MEASUREMENT_ID", "")
+if _GA_ID:
+    components.html(f"""
+<script>
+(function() {{
+  var pd = window.parent.document;
+  var head = pd.head || pd.getElementsByTagName('head')[0];
+  if (pd.getElementById('_ga_loader')) return;
+  var s1 = pd.createElement('script');
+  s1.id = '_ga_loader';
+  s1.async = true;
+  s1.src = 'https://www.googletagmanager.com/gtag/js?id={_GA_ID}';
+  head.insertBefore(s1, head.firstChild);
+  var s2 = pd.createElement('script');
+  s2.id = '_ga_config';
+  s2.textContent = 'window.dataLayer=window.dataLayer||[];function gtag(){{dataLayer.push(arguments);}}gtag("js",new Date());gtag("config","{_GA_ID}");';
+  head.insertBefore(s2, s1.nextSibling);
+}})();
+</script>
+""", height=0)
+
 st.markdown(f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap');
@@ -609,8 +634,6 @@ div.stButton > button:hover {{
 .compat-bar-wrap {{ width: 100%; height: 2px; background: {BORDER}; border-radius: 2px; margin-top: 4px; }}
 .compat-bar      {{ height: 2px; border-radius: 2px; background: {ACCENT}; }}
 
-/* ── Kill the radio widget + its label ── */
-div[data-testid="stRadio"] {{ display: none !important; }}
 
 /* ── Responsive ── */
 @media (max-width: 900px) {{
@@ -740,6 +763,11 @@ def attach_genre_audio(genres):
                 var pdoc = window.parent.document;
                 var cards = pdoc.querySelectorAll('.genre-card');
                 if (!cards.length) return false;
+                var radioWidget = pdoc.querySelector('[data-testid="stRadio"]');
+                if (radioWidget) {{
+                    var container = radioWidget.closest('.element-container') || radioWidget.parentElement;
+                    if (container) container.style.cssText = 'position:absolute;opacity:0;pointer-events:none;height:0;overflow:hidden;';
+                }}
                 cards.forEach(function(card, i) {{
                     if (card.dataset.ah) return;
                     card.dataset.ah = '1';
@@ -946,8 +974,8 @@ def render_sidebar(horoscope_text=None):
     sidebar_html = f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,400;0,500;0,600&display=swap');
-    * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-    body {{ background: transparent; font-family: 'DM Sans', sans-serif; color: {text_color}; }}
+    .sb-root *, .sb-root *::before, .sb-root *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
+    .sb-root {{ font-family: 'DM Sans', sans-serif; color: {text_color}; background: transparent; }}
     .side-box {{ background:{box_bg}; border:1px solid {border_col}; border-radius:18px; padding:18px 16px; margin-bottom:14px; }}
     .side-box-title {{ font-family:'Bebas Neue',sans-serif; font-size:12px; letter-spacing:0.18em; color:{text_dimmer}; margin-bottom:12px; text-transform:uppercase; }}
     .votd-card {{ background:linear-gradient(135deg,rgba(255,45,120,0.14) 0%,rgba(255,45,120,0.04) 100%); border:1px solid rgba(255,45,120,0.28); border-radius:18px; padding:18px 16px; margin-bottom:14px; }}
@@ -978,6 +1006,7 @@ def render_sidebar(horoscope_text=None):
     .horoscope-text  {{ font-size:13px; color:{text_color}; line-height:1.7; font-style:italic; }}
     </style>
 
+    <div class="sb-root">
     <div class="votd-card">
         <div class="side-box-title">✨ vibe of the day</div>
         <div class="votd-emoji">{votd['emoji']}</div>
@@ -1003,6 +1032,7 @@ def render_sidebar(horoscope_text=None):
         <div class="side-box-title">🔮 ur personality type</div>
         {compat_html}
     </div>
+    </div>
     """
     return sidebar_html
 
@@ -1019,7 +1049,7 @@ with left_col:
 with right_col:
     horoscope_text = st.session_state.get("horoscope", None)
     sidebar_html = render_sidebar(horoscope_text)
-    components.html(sidebar_html, height=1200, scrolling=True)
+    st.html(sidebar_html)
 
 with mid_col:
     # ── eye counter ──
@@ -1056,7 +1086,9 @@ with mid_col:
         """, unsafe_allow_html=True)
 
         st.markdown('<div class="section-lbl">pick ur genre (optional)</div>', unsafe_allow_html=True)
+        st.markdown('<div style="display:none">', unsafe_allow_html=True)
         genre = st.radio("Genre", GENRES, key="genre_radio", label_visibility="collapsed")
+        st.markdown('</div>', unsafe_allow_html=True)
         st.session_state.genre = genre
         st.markdown(render_genre_cards(GENRES, genre), unsafe_allow_html=True)
         attach_genre_audio(GENRES)
@@ -1078,8 +1110,8 @@ with mid_col:
             f'<div class="pdot {"active" if i == q_idx else "done" if i < q_idx else ""}"></div>'
             for i in range(len(QUESTIONS))
         ]) + '</div>'
-        st.markdown(dots_html, unsafe_allow_html=True)
-        st.markdown(f'<div class="q-label">{q["emoji"]} {q["text"]}</div>', unsafe_allow_html=True)
+        st.html(dots_html)
+        st.html(f'<div class="q-label">{q["emoji"]} {q["text"]}</div>')
         option_labels = [o["label"] for o in q["options"]]
         option_tags   = [o["tag"]   for o in q["options"]]
         choice = st.radio("hidden", option_labels, label_visibility="hidden", key=f"q_{q_idx}")
@@ -1128,13 +1160,13 @@ with mid_col:
             badge_name, badge_stat, badge_emoji = rare
             rare_html = f'<div class="rare-badge">{badge_emoji} {badge_name} &nbsp;·&nbsp; {badge_stat}</div>'
 
-        safe_song   = html_lib.escape(r['song'])
-        safe_artist = html_lib.escape(r['artist'])
-        safe_vibe   = html_lib.escape(r['vibe'])
-        safe_roast  = html_lib.escape(r['roast'])
-        safe_genre  = html_lib.escape(r['genre'])
+        safe_song   = r['song']
+        safe_artist = r['artist']
+        safe_vibe   = r['vibe']
+        safe_roast  = r['roast']
+        safe_genre  = r['genre']
 
-        st.markdown(f"""
+        st.html(f"""
         <div class="result-wrap">
             {rare_html}
             <div class="res-song-name">{safe_song}</div>
@@ -1143,7 +1175,7 @@ with mid_col:
             <div class="res-reason">{safe_roast}</div>
             <div class="match-info">match score: {r['score']:.0%} &nbsp;·&nbsp; genre: {safe_genre}</div>
         </div>
-        """, unsafe_allow_html=True)
+        """)
 
         st.markdown("<br>", unsafe_allow_html=True)
         with st.expander("see ur top 3 matches"):
@@ -1152,7 +1184,7 @@ with mid_col:
                 st.markdown(f"**{i+1}. {s['song']}** — {s['artist']}  `{s['score']:.0%} match` · _{s['vibe']}_")
 
         roast_line = ROASTS[st.session_state.retries % len(ROASTS)]
-        st.markdown(f'<p class="roast-txt">{roast_line}</p>', unsafe_allow_html=True)
+        st.html(f'<p class="roast-txt">{roast_line}</p>')
 
         col1, col2, col3 = st.columns([1, 1, 1])
         with col2:
@@ -1164,3 +1196,5 @@ with mid_col:
                 st.session_state.selected_tag = None
                 st.session_state.retries   += 1
                 st.rerun()
+
+
