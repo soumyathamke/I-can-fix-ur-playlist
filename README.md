@@ -80,6 +80,3 @@ playlist_fixer/
 - **add real collaborative filtering** — the personality breakdown and horoscope currently run on simple tag-frequency counts; a proper user-history model could replace this
 - **RAG pipeline** — give the LLM the full song database as context instead of just the top match, for richer roast generation
 
-## Built By
-
-Soumya Thamke — [GitHub](https://github.com/soumyathamke) | [Kaggle](https://www.kaggle.com/soumyathamke)
